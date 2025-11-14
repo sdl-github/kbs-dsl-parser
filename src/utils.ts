@@ -58,7 +58,8 @@ const resolveFunKeysMap: Record<string, string> = {
   'importNamespace': 'iNS',
   'importNamed': 'iN',
   'dynamicImport': 'dI',
-  'getImport': 'gI'
+  'getImport': 'gI',
+  'awaitExpression': 'aE'
 }
 
 const resolveTypeKeysMap: Record<string, string> = {

@@ -1,5 +1,39 @@
 # Changelog
 
+## [2.8.0] - 2024-11-14
+
+### ✨ New Features
+- 添加对 `AwaitExpression` (await 表达式) 的支持
+- 改进对象表达式解析的错误处理
+- 完整的 React 项目支持和测试
+- 支持 async/await 语法的 DSL 转换
+
+### 🐛 Bug Fixes
+- 修复 "意料之外的 expression 类型：AwaitExpression" 错误
+- 修复对象表达式中 undefined 属性导致的解析错误
+- 改进对象属性的空值处理
+
+### 🔧 Technical Changes
+- 添加 `awaitExpression` DSL 函数类型
+- 改进 `parseObjectExpression` 的错误处理
+- 支持 React JSX 语法的完整转换
+
+### 📦 React 项目支持
+- ✅ **React Hooks**: `useState`, `useEffect` 等
+- ✅ **JSX 语法**: `React.createElement` 调用转换
+- ✅ **事件处理**: onClick 等事件处理函数
+- ✅ **条件渲染**: 三元运算符和条件表达式
+- ✅ **列表渲染**: `map` 函数和展开语法
+- ✅ **异步操作**: async/await 语法支持
+
+### 🧪 测试项目
+创建了完整的 React 测试项目 (`example-react/`)，包含：
+- React Hooks 使用示例
+- 复杂的 JSX 结构
+- 事件处理和状态管理
+- 动态导入和懒加载
+- 现代 JavaScript 语法
+
 ## [2.7.0] - 2024-11-14
 
 ### ✨ New Features

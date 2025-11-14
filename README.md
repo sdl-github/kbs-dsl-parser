@@ -18,139 +18,139 @@ pnpm add vite-plugin-kbs-dsl
 
 ```typescript
 // vite.config.ts
-import { defineConfig } from 'vite'
-import { kbsDslParser } from 'vite-plugin-kbs-dsl'
+import { defineConfig } from "vite";
+import { kbsDslParser } from "vite-plugin-kbs-dsl";
 
 // 保留函数名
 const ignoreFNames = [
-  '_applyDecoratedDescriptor',
-  '_applyDecs',
-  '_applyDecs2203',
-  '_applyDecs2203R',
-  '_applyDecs2301',
-  '_applyDecs2305',
-  '_arrayLikeToArray',
-  '_arrayWithHoles',
-  '_arrayWithoutHoles',
-  '_assertThisInitialized',
-  '_AsyncGenerator',
-  '_asyncGeneratorDelegate',
-  '_asyncIterator',
-  '_asyncToGenerator',
-  '_awaitAsyncGenerator',
-  '_AwaitValue',
-  '_checkInRHS',
-  '_checkPrivateRedeclaration',
-  '_classApplyDescriptorDestructureSet',
-  '_classApplyDescriptorGet',
-  '_classApplyDescriptorSet',
-  '_classCallCheck',
-  '_classCheckPrivateStaticAccess',
-  '_classCheckPrivateStaticFieldDescriptor',
-  '_classExtractFieldDescriptor',
-  '_classNameTDZError',
-  '_classPrivateFieldDestructureSet',
-  '_classPrivateFieldGet',
-  '_classPrivateFieldInitSpec',
-  '_classPrivateFieldLooseBase',
-  '_classPrivateFieldLooseKey',
-  '_classPrivateFieldSet',
-  '_classPrivateMethodGet',
-  '_classPrivateMethodInitSpec',
-  '_classPrivateMethodSet',
-  '_classStaticPrivateFieldDestructureSet',
-  '_classStaticPrivateFieldSpecGet',
-  '_classStaticPrivateFieldSpecSet',
-  '_classStaticPrivateMethodGet',
-  '_classStaticPrivateMethodSet',
-  '_construct',
-  '_createClass',
-  '_createForOfIteratorHelper',
-  '_createForOfIteratorHelperLoose',
-  '_createSuper',
-  '_decorate',
-  '_defaults',
-  '_defineAccessor',
-  '_defineEnumerableProperties',
-  '_defineProperty',
-  '_dispose',
-  '_extends',
-  '_get',
-  '_getPrototypeOf',
-  '_identity',
-  '_inherits',
-  '_inheritsLoose',
-  '_initializerDefineProperty',
-  '_initializerWarningHelper',
-  '_instanceof',
-  '_interopRequireDefault',
-  '_interopRequireWildcard',
-  '_isNativeFunction',
-  '_isNativeReflectConstruct',
-  '_iterableToArray',
-  '_iterableToArrayLimit',
-  '_iterableToArrayLimitLoose',
-  '_jsx',
-  '_maybeArrayLike',
-  '_newArrowCheck',
-  '_nonIterableRest',
-  '_nonIterableSpread',
-  '_objectDestructuringEmpty',
-  '_objectSpread',
-  '_objectSpread2',
-  '_objectWithoutProperties',
-  '_objectWithoutPropertiesLoose',
-  '_OverloadYield',
-  '_possibleConstructorReturn',
-  '_readOnlyError',
-  '_regeneratorRuntime',
-  '_set',
-  '_setPrototypeOf',
-  '_skipFirstGeneratorNext',
-  '_slicedToArray',
-  '_slicedToArrayLoose',
-  '_superPropBase',
-  '_taggedTemplateLiteral',
-  '_taggedTemplateLiteralLoose',
-  '_tdz',
-  '_temporalRef',
-  '_temporalUndefined',
-  '_toArray',
-  '_toConsumableArray',
-  '_toPrimitive',
-  '_toPropertyKey',
-  '_typeof',
-  '_unsupportedIterableToArray',
-  '_using',
-  '_wrapAsyncGenerator',
-  '_wrapNativeSuper',
-  '_wrapRegExp',
-  '_writeOnlyError',
-]
+  "_applyDecoratedDescriptor",
+  "_applyDecs",
+  "_applyDecs2203",
+  "_applyDecs2203R",
+  "_applyDecs2301",
+  "_applyDecs2305",
+  "_arrayLikeToArray",
+  "_arrayWithHoles",
+  "_arrayWithoutHoles",
+  "_assertThisInitialized",
+  "_AsyncGenerator",
+  "_asyncGeneratorDelegate",
+  "_asyncIterator",
+  "_asyncToGenerator",
+  "_awaitAsyncGenerator",
+  "_AwaitValue",
+  "_checkInRHS",
+  "_checkPrivateRedeclaration",
+  "_classApplyDescriptorDestructureSet",
+  "_classApplyDescriptorGet",
+  "_classApplyDescriptorSet",
+  "_classCallCheck",
+  "_classCheckPrivateStaticAccess",
+  "_classCheckPrivateStaticFieldDescriptor",
+  "_classExtractFieldDescriptor",
+  "_classNameTDZError",
+  "_classPrivateFieldDestructureSet",
+  "_classPrivateFieldGet",
+  "_classPrivateFieldInitSpec",
+  "_classPrivateFieldLooseBase",
+  "_classPrivateFieldLooseKey",
+  "_classPrivateFieldSet",
+  "_classPrivateMethodGet",
+  "_classPrivateMethodInitSpec",
+  "_classPrivateMethodSet",
+  "_classStaticPrivateFieldDestructureSet",
+  "_classStaticPrivateFieldSpecGet",
+  "_classStaticPrivateFieldSpecSet",
+  "_classStaticPrivateMethodGet",
+  "_classStaticPrivateMethodSet",
+  "_construct",
+  "_createClass",
+  "_createForOfIteratorHelper",
+  "_createForOfIteratorHelperLoose",
+  "_createSuper",
+  "_decorate",
+  "_defaults",
+  "_defineAccessor",
+  "_defineEnumerableProperties",
+  "_defineProperty",
+  "_dispose",
+  "_extends",
+  "_get",
+  "_getPrototypeOf",
+  "_identity",
+  "_inherits",
+  "_inheritsLoose",
+  "_initializerDefineProperty",
+  "_initializerWarningHelper",
+  "_instanceof",
+  "_interopRequireDefault",
+  "_interopRequireWildcard",
+  "_isNativeFunction",
+  "_isNativeReflectConstruct",
+  "_iterableToArray",
+  "_iterableToArrayLimit",
+  "_iterableToArrayLimitLoose",
+  "_jsx",
+  "_maybeArrayLike",
+  "_newArrowCheck",
+  "_nonIterableRest",
+  "_nonIterableSpread",
+  "_objectDestructuringEmpty",
+  "_objectSpread",
+  "_objectSpread2",
+  "_objectWithoutProperties",
+  "_objectWithoutPropertiesLoose",
+  "_OverloadYield",
+  "_possibleConstructorReturn",
+  "_readOnlyError",
+  "_regeneratorRuntime",
+  "_set",
+  "_setPrototypeOf",
+  "_skipFirstGeneratorNext",
+  "_slicedToArray",
+  "_slicedToArrayLoose",
+  "_superPropBase",
+  "_taggedTemplateLiteral",
+  "_taggedTemplateLiteralLoose",
+  "_tdz",
+  "_temporalRef",
+  "_temporalUndefined",
+  "_toArray",
+  "_toConsumableArray",
+  "_toPrimitive",
+  "_toPropertyKey",
+  "_typeof",
+  "_unsupportedIterableToArray",
+  "_using",
+  "_wrapAsyncGenerator",
+  "_wrapNativeSuper",
+  "_wrapRegExp",
+  "_writeOnlyError",
+];
 
 export default defineConfig({
   plugins: [
     kbsDslParser({
-      compress: process.env.COMPRESS === 'yes', // 是否压缩代码
+      compress: process.env.COMPRESS === "yes", // 是否压缩代码
       ignoreFNames, // 保留的函数名列表：默认为 @babel/runtime/helpers
       watch: true, // 是否开启监听
       watchOptions: {
-        protocol: 'ws', // 只有这个选项
-        host: 'localhost', // 如果不想用 localhost 可以传值进去
-        port: 9900 // 端口
+        protocol: "ws", // 只有这个选项
+        host: "localhost", // 如果不想用 localhost 可以传值进去
+        port: 9900, // 端口
       },
-      test: (id) => id.endsWith('.js') // 自定义文件过滤规则
-    })
-  ]
-})
+      test: (id) => id.endsWith(".js"), // 自定义文件过滤规则
+    }),
+  ],
+});
 ```
 
 ### JavaScript 配置
 
 ```javascript
 // vite.config.js
-import { defineConfig } from 'vite'
-import { kbsDslParser } from 'vite-plugin-kbs-dsl'
+import { defineConfig } from "vite";
+import { kbsDslParser } from "vite-plugin-kbs-dsl";
 
 export default defineConfig({
   plugins: [
@@ -158,23 +158,23 @@ export default defineConfig({
       compress: false,
       watch: true,
       watchOptions: {
-        port: 9900
-      }
-    })
-  ]
-})
+        port: 9900,
+      },
+    }),
+  ],
+});
 ```
 
 ## 配置选项
 
-| 选项 | 类型 | 默认值 | 描述 |
-|------|------|--------|------|
-| `compress` | `boolean` | `false` | 是否压缩生成的 DSL 代码 |
-| `ignoreFNames` | `string[]` | `[]` | 保留的函数名列表，通常用于 @babel/runtime/helpers |
-| `watch` | `boolean` | `false` | 是否开启 WebSocket 监听模式 |
-| `watchOptions` | `object` | `{ port: 9900, host: 'localhost', protocol: 'ws' }` | WebSocket 服务器配置 |
-| `test` | `function` | `() => true` | 文件过滤函数，接收文件 ID，返回布尔值 |
-| `injectHtmlAttribute` | `boolean` | `true` | 是否在 HTML 中为 script 标签添加 mp-web-package-url 属性 |
+| 选项                  | 类型       | 默认值                                              | 描述                                                     |
+| --------------------- | ---------- | --------------------------------------------------- | -------------------------------------------------------- |
+| `compress`            | `boolean`  | `false`                                             | 是否压缩生成的 DSL 代码                                  |
+| `ignoreFNames`        | `string[]` | `[]`                                                | 保留的函数名列表，通常用于 @babel/runtime/helpers        |
+| `watch`               | `boolean`  | `false`                                             | 是否开启 WebSocket 监听模式                              |
+| `watchOptions`        | `object`   | `{ port: 9900, host: 'localhost', protocol: 'ws' }` | WebSocket 服务器配置                                     |
+| `test`                | `function` | `() => true`                                        | 文件过滤函数，接收文件 ID，返回布尔值                    |
+| `injectHtmlAttribute` | `boolean`  | `true`                                              | 是否在 HTML 中为 script 标签添加 mp-web-package-url 属性 |
 
 ## 功能特性
 
@@ -202,7 +202,11 @@ export default defineConfig({
 <script type="module" src="/assets/index-VzG3rHVd.js"></script>
 
 <!-- 构建后 -->
-<script type="module" src="/assets/index-VzG3rHVd.js" mp-web-package-url="/assets/index-VzG3rHVd.dsl.json"></script>
+<script
+  type="module"
+  src="/assets/index-VzG3rHVd.js"
+  mp-web-package-url="/assets/index-VzG3rHVd.dsl.json"
+></script>
 ```
 
 这样运行时可以通过 `script.getAttribute('mp-web-package-url')` 获取 DSL 文件路径。
@@ -212,6 +216,7 @@ export default defineConfig({
 ## 支持的语法
 
 ### ES5 语法
+
 - 变量声明 (`var`, `let`, `const`)
 - 函数声明和表达式
 - 条件语句 (`if/else`, `switch`)
@@ -221,7 +226,8 @@ export default defineConfig({
 - 所有运算符和表达式
 
 ### ES6+ 语法
-- **模板字符串**: `\`Hello ${name}!\`` → `templateLiteral` 调用
+
+- **模板字符串**: `\`Hello ${name}!\``→`templateLiteral` 调用
 - **箭头函数**: `(a, b) => a + b` → 标准函数表达式
 - **for...of 循环**: `for (const item of array)` → `callForOf` 调用
 - **展开语法**: `...array` → `spreadElement` 调用
@@ -233,12 +239,33 @@ export default defineConfig({
 - **空值合并**: `value ?? defaultValue` → 逻辑运算
 
 ### ES 模块语法
+
 - **导入语句**: `import { name } from 'module'` → `importNamed` 调用
 - **导出语句**: `export const name = value` → `exportNamed` 调用
 - **默认导出**: `export default value` → `exportDefault` 调用
 - **重新导出**: `export { name } from 'module'` → 模块转发
 - **动态导入**: `import('./module.js')` → `dynamicImport` 调用
+- **async/await**: `await promise` → `awaitExpression` 调用
 
-### Vue 项目支持
-插件已经过 Vue 3 项目测试，能够正确处理 Vue 编译后的 JavaScript 代码。
+### 框架支持
+
+插件已经过以下框架的完整测试：
+
+#### Vue 3 项目
+
+- ✅ Vue 组件语法
+- ✅ Composition API
+- ✅ 响应式系统
+- ✅ 模板编译后的代码
+
+#### React 项目
+
+- ✅ React Hooks (useState, useEffect 等)
+- ✅ JSX 语法转换
+- ✅ 事件处理系统
+- ✅ 组件生命周期
+- ✅ 条件渲染和列表渲染
+
+```
+
 ```

@@ -270,6 +270,9 @@ const parseExpression = (expression: any): any => {
     // 动态导入
     case 'Import':
       return parseDynamicImport(expression)
+    // await 表达式
+    case 'AwaitExpression':
+      return parseAwaitExpression(expression)
     default:
       throw new Error(`意料之外的 expression 类型：${expression.type}`)
   }
@@ -608,18 +611,28 @@ const parseSequenceExpression = ({ expressions }: any): any => {
 const parseObjectExpression = ({ properties }: any): any => {
   return {
     [getKeyName('type', compress)]: getTypeName('object-literal', compress),
-    [getKeyName('value', compress)]: properties.map(({ key, value }: any) => ({
-      [getKeyName('key', compress)]: key.type === 'Identifier' ? key.name : key.value,
-      [getKeyName('value', compress)]: (
-        value && value.type === 'MemberExpression'
-          ? {
-            [getKeyName('type', compress)]: getTypeName('call-function', compress),
-            [getKeyName('name', compress)]: getCallFunName('getValue', compress),
-            [getKeyName('value', compress)]: [parseExpression(value)]
-          }
-          : parseExpression(value)
-      )
-    }))
+    [getKeyName('value', compress)]: properties.map((prop: any) => {
+      if (!prop || !prop.key) {
+        return {
+          [getKeyName('key', compress)]: 'unknown',
+          [getKeyName('value', compress)]: null
+        }
+      }
+      
+      const { key, value } = prop
+      return {
+        [getKeyName('key', compress)]: key.type === 'Identifier' ? key.name : key.value,
+        [getKeyName('value', compress)]: (
+          value && value.type === 'MemberExpression'
+            ? {
+              [getKeyName('type', compress)]: getTypeName('call-function', compress),
+              [getKeyName('name', compress)]: getCallFunName('getValue', compress),
+              [getKeyName('value', compress)]: [parseExpression(value)]
+            }
+            : parseExpression(value)
+        )
+      }
+    })
   }
 }
 
@@ -864,6 +877,15 @@ const parseDynamicImport = (expression: any): any => {
     [getKeyName('type', compress)]: getTypeName('call-function', compress),
     [getKeyName('name', compress)]: getCallFunName('getImport', compress),
     [getKeyName('value', compress)]: []
+  }
+}
+
+// await 表达式
+const parseAwaitExpression = ({ argument }: any): any => {
+  return {
+    [getKeyName('type', compress)]: getTypeName('call-function', compress),
+    [getKeyName('name', compress)]: getCallFunName('awaitExpression', compress),
+    [getKeyName('value', compress)]: parseExpression(argument)
   }
 }
 

@@ -62,7 +62,8 @@ var resolveFunKeysMap = {
   "importNamespace": "iNS",
   "importNamed": "iN",
   "dynamicImport": "dI",
-  "getImport": "gI"
+  "getImport": "gI",
+  "awaitExpression": "aE"
 };
 var resolveTypeKeysMap = {
   "call-function": "c",
@@ -333,6 +334,9 @@ var parseExpression = (expression) => {
     // 动态导入
     case "Import":
       return parseDynamicImport(expression);
+    // await 表达式
+    case "AwaitExpression":
+      return parseAwaitExpression(expression);
     default:
       throw new Error(`\u610F\u6599\u4E4B\u5916\u7684 expression \u7C7B\u578B\uFF1A${expression.type}`);
   }
@@ -606,14 +610,23 @@ var parseSequenceExpression = ({ expressions }) => {
 var parseObjectExpression = ({ properties }) => {
   return {
     [getKeyName("type", compress)]: getTypeName("object-literal", compress),
-    [getKeyName("value", compress)]: properties.map(({ key, value }) => ({
-      [getKeyName("key", compress)]: key.type === "Identifier" ? key.name : key.value,
-      [getKeyName("value", compress)]: value && value.type === "MemberExpression" ? {
-        [getKeyName("type", compress)]: getTypeName("call-function", compress),
-        [getKeyName("name", compress)]: getCallFunName("getValue", compress),
-        [getKeyName("value", compress)]: [parseExpression(value)]
-      } : parseExpression(value)
-    }))
+    [getKeyName("value", compress)]: properties.map((prop) => {
+      if (!prop || !prop.key) {
+        return {
+          [getKeyName("key", compress)]: "unknown",
+          [getKeyName("value", compress)]: null
+        };
+      }
+      const { key, value } = prop;
+      return {
+        [getKeyName("key", compress)]: key.type === "Identifier" ? key.name : key.value,
+        [getKeyName("value", compress)]: value && value.type === "MemberExpression" ? {
+          [getKeyName("type", compress)]: getTypeName("call-function", compress),
+          [getKeyName("name", compress)]: getCallFunName("getValue", compress),
+          [getKeyName("value", compress)]: [parseExpression(value)]
+        } : parseExpression(value)
+      };
+    })
   };
 };
 var parseWhileStatement = ({ test, body }, raiseVars) => {
@@ -810,6 +823,13 @@ var parseDynamicImport = (expression) => {
     [getKeyName("type", compress)]: getTypeName("call-function", compress),
     [getKeyName("name", compress)]: getCallFunName("getImport", compress),
     [getKeyName("value", compress)]: []
+  };
+};
+var parseAwaitExpression = ({ argument }) => {
+  return {
+    [getKeyName("type", compress)]: getTypeName("call-function", compress),
+    [getKeyName("name", compress)]: getCallFunName("awaitExpression", compress),
+    [getKeyName("value", compress)]: parseExpression(argument)
   };
 };
 var parseMetaProperty = ({ meta, property }) => {
