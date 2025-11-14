@@ -184,8 +184,33 @@ export default defineConfig({
 - ✅ 自定义文件过滤
 - ✅ 代码压缩选项
 - ✅ 完整的 ES5 语法支持
+- ✅ ES6+ 语法支持（模板字符串、箭头函数等）
+- ✅ Vue 项目兼容性
 
 ## 输出
 
 插件会为每个匹配的 `.js` 文件生成对应的 `.dsl.json` 文件，包含转换后的 KBS DSL 结构。
+
+## 支持的语法
+
+### ES5 语法
+- 变量声明 (`var`, `let`, `const`)
+- 函数声明和表达式
+- 条件语句 (`if/else`, `switch`)
+- 循环语句 (`for`, `while`, `do-while`, `for-in`)
+- 异常处理 (`try/catch/finally`)
+- 对象和数组字面量
+- 所有运算符和表达式
+
+### ES6+ 语法
+- **模板字符串**: `\`Hello ${name}!\`` → `templateLiteral` 调用
+- **箭头函数**: `(a, b) => a + b` → 标准函数表达式
+- **for...of 循环**: `for (const item of array)` → `callForOf` 调用
+- **展开语法**: `...array` → `spreadElement` 调用
+- **类声明**: `class MyClass` → 函数声明 + 原型方法
+- **类表达式**: `const MyClass = class {}` → IIFE 包装的类声明
+- **解构赋值**: 基本支持数组和对象解构
+
+### Vue 项目支持
+插件已经过 Vue 3 项目测试，能够正确处理 Vue 编译后的 JavaScript 代码。
 ```

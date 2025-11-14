@@ -1,5 +1,74 @@
 # Changelog
 
+## [2.3.0] - 2024-11-14
+
+### ✨ New Features
+- 添加对 `ClassExpression` (类表达式) 的支持
+- 类表达式转换为立即执行函数表达式 (IIFE)
+- 支持匿名类表达式和命名类表达式
+- 支持类表达式的继承
+
+### 🐛 Bug Fixes
+- 修复 "意料之外的 expression 类型：ClassExpression" 错误
+- 改进类表达式在复杂场景下的处理
+
+### 🔧 Technical Changes
+- 类表达式转换为 IIFE 包装的类声明
+- 自动生成匿名类的唯一名称
+- 保持类表达式的作用域特性
+
+### ✅ 完整的类支持
+- ✅ 类声明 (`class MyClass {}`)
+- ✅ 类表达式 (`const MyClass = class {}`)
+- ✅ 匿名类表达式 (`new (class {})()`)
+- ✅ 类继承 (`class Child extends Parent {}`)
+
+## [2.2.0] - 2024-11-14
+
+### ✨ New Features
+- 添加对 `ForOfStatement` (for...of 循环) 的支持
+- 添加对 `SpreadElement` (展开语法) 的支持
+- 添加对 `ClassDeclaration` (类声明) 的支持
+- 添加对解构赋值的基本支持
+- 改进函数参数处理，支持复杂参数类型
+
+### 🐛 Bug Fixes
+- 修复 "意料之外的 esTree node: ForOfStatement" 错误
+- 修复 "意料之外的 expression 类型：SpreadElement" 错误
+- 修复 "意料之外的 esTree node: ClassDeclaration" 错误
+- 修复函数参数为 null 时的解构错误
+- 修复 Vue 项目构建时的各种语法解析错误
+
+### 🔧 Technical Changes
+- 添加 `callForOf` DSL 函数类型
+- 添加 `spreadElement` DSL 函数类型
+- 添加 `classExtends` DSL 函数类型
+- 添加 `destructureAssign` DSL 函数类型
+- 添加多种解构模式类型支持
+- 改进类声明转换为函数和原型方法的逻辑
+
+### ✅ Vue 兼容性
+- 完全支持 Vue 3 项目构建
+- 正确处理 Vue 编译后的复杂 JavaScript 代码
+- 生成完整的 DSL 文件（示例：721KB DSL 输出）
+
+## [2.1.0] - 2024-11-14
+
+### ✨ New Features
+- 添加对 ES6+ 语法的支持
+- 支持模板字符串 (TemplateLiteral) 解析
+- 支持箭头函数 (ArrowFunctionExpression) 解析
+- 修复 Vue 项目构建时的解析错误
+
+### 🐛 Bug Fixes
+- 修复 "意料之外的 expression 类型：TemplateLiteral" 错误
+- 改进对现代 JavaScript 语法的兼容性
+
+### 🔧 Technical Changes
+- 添加 `templateLiteral` DSL 函数类型
+- 箭头函数转换为标准函数表达式
+- 模板字符串转换为字符串拼接操作
+
 ## [2.0.0] - 2024-11-14
 
 ### 🚀 Major Changes

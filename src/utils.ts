@@ -28,6 +28,7 @@ const resolveFunKeysMap: Record<string, string> = {
   'callDoWhile': 'cDW',
   'callFor': 'cF',
   'callForIn': 'cFI',
+  'callForOf': 'cFO',
   'destroy': 'd',
   'delete': 'del',
   'createFunction': 'f',
@@ -41,7 +42,11 @@ const resolveFunKeysMap: Record<string, string> = {
   'callSwitch': 's',
   'callSequence': 'cS',
   'addLabel': 'aL',
-  'removeLabel': 'rL'
+  'removeLabel': 'rL',
+  'templateLiteral': 'tL',
+  'spreadElement': 'sE',
+  'classExtends': 'cE',
+  'destructureAssign': 'dA'
 }
 
 const resolveTypeKeysMap: Record<string, string> = {
@@ -55,7 +60,12 @@ const resolveTypeKeysMap: Record<string, string> = {
   'prefix-vars': 'p',
   'member': 'm',
   'label-statement': 'ls',
-  'this': 't'
+  'this': 't',
+  'array-pattern': 'ap',
+  'object-pattern': 'op',
+  'identifier-pattern': 'ip',
+  'rest-pattern': 'rp',
+  'unknown-pattern': 'up'
 }
 
 const dslObjKeyNamesMap: Record<string, string> = {

@@ -55,11 +55,23 @@ const es5ToDsl = (body: Statement[], scopeBlock = false): any[] => {
     .forEach(item => {
       const { type } = item
       const resolvedItem = parseStatementOrDeclaration(item, raiseVars)
-      if (type === 'FunctionDeclaration') {
-        // 函数声明需要前置
-        resolvedModule.unshift(resolvedItem)
-      } else {
-        resolvedModule.push(resolvedItem)
+      
+      if (Array.isArray(resolvedItem)) {
+        // 处理返回数组的情况（如类声明）
+        resolvedItem.forEach(subItem => {
+          if (type === 'FunctionDeclaration' || type === 'ClassDeclaration') {
+            resolvedModule.unshift(subItem)
+          } else {
+            resolvedModule.push(subItem)
+          }
+        })
+      } else if (resolvedItem) {
+        if (type === 'FunctionDeclaration' || type === 'ClassDeclaration') {
+          // 函数声明和类声明需要前置
+          resolvedModule.unshift(resolvedItem)
+        } else {
+          resolvedModule.push(resolvedItem)
+        }
       }
     })
   
@@ -121,12 +133,16 @@ const parseStatementOrDeclaration = (row: any, raiseVars: string[] = []): any =>
       return parseForStatement(row, raiseVars)
     case 'ForInStatement':
       return parseForInStatement(row, raiseVars)
+    case 'ForOfStatement':
+      return parseForOfStatement(row, raiseVars)
     case 'BreakStatement':
       return parseBreakStatement(row)
     case 'ContinueStatement':
       return parseContinuteStatement(row)
     case 'LabeledStatement':
       return parseLabeledStatement(row)
+    case 'ClassDeclaration':
+      return parseClassDeclaration(row)
     default:
       // 非不处理类型，需要报错
       if (!ignoreTypes.includes(type)) throw new Error(`意料之外的 esTree node: ${type}`)
@@ -216,6 +232,18 @@ const parseExpression = (expression: any): any => {
     // 逻辑表达式
     case 'LogicalExpression':
       return parseLogicalExpression(expression)
+    // 模板字符串
+    case 'TemplateLiteral':
+      return parseTemplateLiteral(expression)
+    // 箭头函数
+    case 'ArrowFunctionExpression':
+      return parseArrowFunctionExpression(expression)
+    // 展开语法
+    case 'SpreadElement':
+      return parseSpreadElement(expression)
+    // 类表达式
+    case 'ClassExpression':
+      return parseClassExpression(expression)
     default:
       throw new Error(`意料之外的 expression 类型：${expression.type}`)
   }
@@ -289,7 +317,13 @@ const parseFunctionExpression = ({ id, params, body: { body } }: any, isDeclarat
         getTypeName('customize-function', compress)
     ),
     [getKeyName('name', compress)]: name,
-    [getKeyName('params', compress)]: params.map(({ name }: any) => name),
+    [getKeyName('params', compress)]: params.map((param: any) => {
+      if (!param) return null
+      if (param.type === 'Identifier') return param.name
+      if (param.type === 'RestElement') return `...${param.argument.name}`
+      // 对于其他复杂参数类型，返回一个占位符
+      return `param_${param.type}`
+    }).filter(Boolean),
     [getKeyName('body', compress)]: es5ToDsl(body, true)
   }
 }
@@ -437,8 +471,25 @@ const parseAssignmentExpression = ({ left, right, operator }: any): any => {
       [getKeyName('name', compress)]: getCallFunName('assignLet', compress),
       [getKeyName('value', compress)]: [parseMemberExpression(left), parseExpression(right), operator]
     }
+  } else if (left.type === 'ArrayPattern' || left.type === 'ObjectPattern') {
+    // 解构赋值，转换为普通赋值
+    return {
+      [getKeyName('type', compress)]: getTypeName('call-function', compress),
+      [getKeyName('name', compress)]: getCallFunName('destructureAssign', compress),
+      [getKeyName('value', compress)]: [parsePattern(left), parseExpression(right), operator]
+    }
   }
-  throw new Error(`Uncaught SyntaxError: Invalid left-hand side in assignment`)
+  
+  // 对于其他不支持的左值类型，尝试作为表达式处理
+  try {
+    return {
+      [getKeyName('type', compress)]: getTypeName('call-function', compress),
+      [getKeyName('name', compress)]: getCallFunName('assignLet', compress),
+      [getKeyName('value', compress)]: [parseExpression(left), parseExpression(right), operator]
+    }
+  } catch (e) {
+    throw new Error(`Uncaught SyntaxError: Invalid left-hand side in assignment`)
+  }
 }
 
 // 自更新运算
@@ -616,6 +667,42 @@ const parseForInStatement = ({ left, right, body }: any, raiseVars: string[]): a
   }
 }
 
+// for...of 语句
+const parseForOfStatement = ({ left, right, body }: any, raiseVars: string[]): any => {
+  let leftDsl: any
+  switch (left.type) {
+    case 'Identifier':
+      leftDsl = [left.name]
+      break
+    case 'MemberExpression':
+      leftDsl = parseMemberExpression(left)
+      break
+    case 'VariableDeclaration':
+      leftDsl = parseVariableDeclaration(left, raiseVars)
+      break
+    default:
+      throw new Error(`未知的 for...of 初始化类型：${left.type}`)
+  }
+  // for...of 语句有一个隐藏的作用域，用 blockStatement 来代替
+  return {
+    [getKeyName('type', compress)]: getTypeName('call-function', compress),
+    [getKeyName('name', compress)]: getCallFunName('callBlockStatement', compress),
+    [getKeyName('value', compress)]: [
+      [
+        {
+          [getKeyName('type', compress)]: getTypeName('call-function', compress),
+          [getKeyName('name', compress)]: getCallFunName('callForOf', compress),
+          [getKeyName('value', compress)]: [
+            leftDsl,
+            parseExpression(right),
+            parseStatementOrDeclaration(body, raiseVars)
+          ]
+        }
+      ]
+    ]
+  }
+}
+
 // break 语句
 const parseBreakStatement = ({ label }: any): any => {
   return {
@@ -651,6 +738,231 @@ const parseLabeledStatement = ({ label, body }: any): any => {
       }
     ]
   }
+}
+
+// 展开语法
+const parseSpreadElement = ({ argument }: any): any => {
+  return {
+    [getKeyName('type', compress)]: getTypeName('call-function', compress),
+    [getKeyName('name', compress)]: getCallFunName('spreadElement', compress),
+    [getKeyName('value', compress)]: parseExpression(argument)
+  }
+}
+
+// 箭头函数
+const parseArrowFunctionExpression = ({ params, body, async }: any): any => {
+  // 箭头函数转换为普通函数表达式
+  const functionBody = body.type === 'BlockStatement' 
+    ? es5ToDsl(body.body, true)
+    : [
+        {
+          [getKeyName('type', compress)]: getTypeName('prefix-vars', compress),
+          [getKeyName('value', compress)]: []
+        },
+        {
+          [getKeyName('type', compress)]: getTypeName('call-function', compress),
+          [getKeyName('name', compress)]: getCallFunName('callReturn', compress),
+          [getKeyName('value', compress)]: [parseExpression(body)]
+        }
+      ]
+
+  return {
+    [getKeyName('type', compress)]: getTypeName('customize-function', compress),
+    [getKeyName('name', compress)]: null,
+    [getKeyName('params', compress)]: params.map((param: any) => {
+      if (!param) return null
+      if (param.type === 'Identifier') return param.name
+      if (param.type === 'RestElement') return `...${param.argument.name}`
+      return `param_${param.type}`
+    }).filter(Boolean),
+    [getKeyName('body', compress)]: functionBody,
+    [getKeyName('async', compress)]: async || false
+  }
+}
+
+// 模板字符串
+const parseTemplateLiteral = ({ quasis, expressions }: any): any => {
+  // 将模板字符串转换为字符串拼接的形式
+  if (quasis.length === 1 && expressions.length === 0) {
+    // 简单的模板字符串，没有插值表达式
+    return {
+      [getKeyName('type', compress)]: getTypeName('literal', compress),
+      [getKeyName('value', compress)]: quasis[0].value.cooked
+    }
+  }
+  
+  // 有插值表达式的模板字符串，转换为字符串拼接
+  const parts: any[] = []
+  
+  for (let i = 0; i < quasis.length; i++) {
+    // 添加字符串部分
+    if (quasis[i].value.cooked !== '') {
+      parts.push({
+        [getKeyName('type', compress)]: getTypeName('literal', compress),
+        [getKeyName('value', compress)]: quasis[i].value.cooked
+      })
+    }
+    
+    // 添加表达式部分
+    if (i < expressions.length) {
+      parts.push(parseExpression(expressions[i]))
+    }
+  }
+  
+  // 如果只有一个部分，直接返回
+  if (parts.length === 1) {
+    return parts[0]
+  }
+  
+  // 多个部分需要拼接
+  return {
+    [getKeyName('type', compress)]: getTypeName('call-function', compress),
+    [getKeyName('name', compress)]: getCallFunName('templateLiteral', compress),
+    [getKeyName('value', compress)]: parts
+  }
+}
+
+// 解构模式
+const parsePattern = (pattern: any): any => {
+  switch (pattern.type) {
+    case 'ArrayPattern':
+      return {
+        [getKeyName('type', compress)]: getTypeName('array-pattern', compress),
+        [getKeyName('value', compress)]: pattern.elements.map((element: any) => 
+          element ? parsePattern(element) : null
+        )
+      }
+    case 'ObjectPattern':
+      return {
+        [getKeyName('type', compress)]: getTypeName('object-pattern', compress),
+        [getKeyName('value', compress)]: pattern.properties.map((prop: any) => ({
+          [getKeyName('key', compress)]: prop.key.name,
+          [getKeyName('value', compress)]: parsePattern(prop.value)
+        }))
+      }
+    case 'Identifier':
+      return {
+        [getKeyName('type', compress)]: getTypeName('identifier-pattern', compress),
+        [getKeyName('value', compress)]: pattern.name
+      }
+    case 'RestElement':
+      return {
+        [getKeyName('type', compress)]: getTypeName('rest-pattern', compress),
+        [getKeyName('value', compress)]: parsePattern(pattern.argument)
+      }
+    default:
+      return {
+        [getKeyName('type', compress)]: getTypeName('unknown-pattern', compress),
+        [getKeyName('value', compress)]: pattern.type
+      }
+  }
+}
+
+// 类表达式
+const parseClassExpression = ({ id, superClass, body }: any): any => {
+  // 类表达式转换为立即执行函数表达式 (IIFE)
+  const className = id ? id.name : `AnonymousClass_${Date.now()}`
+  const classDeclaration = parseClassDeclaration({ id: { name: className }, superClass, body })
+  
+  // 将类声明包装在 IIFE 中
+  return {
+    [getKeyName('type', compress)]: getTypeName('call-function', compress),
+    [getKeyName('name', compress)]: getCallFunName('callFun', compress),
+    [getKeyName('value', compress)]: [
+      {
+        [getKeyName('type', compress)]: getTypeName('customize-function', compress),
+        [getKeyName('name', compress)]: null,
+        [getKeyName('params', compress)]: [],
+        [getKeyName('body', compress)]: [
+          {
+            [getKeyName('type', compress)]: getTypeName('prefix-vars', compress),
+            [getKeyName('value', compress)]: []
+          },
+          ...(Array.isArray(classDeclaration) ? classDeclaration : [classDeclaration]),
+          {
+            [getKeyName('type', compress)]: getTypeName('call-function', compress),
+            [getKeyName('name', compress)]: getCallFunName('callReturn', compress),
+            [getKeyName('value', compress)]: [{
+              [getKeyName('type', compress)]: getTypeName('call-function', compress),
+              [getKeyName('name', compress)]: getCallFunName('getConst', compress),
+              [getKeyName('value', compress)]: className
+            }]
+          }
+        ]
+      },
+      []
+    ]
+  }
+}
+
+// 类声明
+const parseClassDeclaration = ({ id, superClass, body }: any): any => {
+  // 将类声明转换为函数声明和原型方法的组合
+  const className = id ? id.name : null
+  const methods: any[] = []
+  
+  // 处理类体中的方法
+  body.body.forEach((method: any) => {
+    if (method.type === 'MethodDefinition') {
+      const methodName = method.key.name
+      const isConstructor = method.kind === 'constructor'
+      const isStatic = method.static
+      
+      if (isConstructor) {
+        // 构造函数转换为普通函数声明
+        methods.unshift({
+          [getKeyName('type', compress)]: getTypeName('declare-function', compress),
+          [getKeyName('name', compress)]: className,
+          [getKeyName('params', compress)]: method.value.params.map((param: any) => {
+            if (!param) return null
+            if (param.type === 'Identifier') return param.name
+            if (param.type === 'RestElement') return `...${param.argument.name}`
+            return `param_${param.type}`
+          }).filter(Boolean),
+          [getKeyName('body', compress)]: es5ToDsl(method.value.body.body, true)
+        })
+      } else {
+        // 实例方法或静态方法转换为原型赋值
+        const target = isStatic 
+          ? [className, methodName]
+          : [className, 'prototype', methodName]
+        
+        methods.push({
+          [getKeyName('type', compress)]: getTypeName('call-function', compress),
+          [getKeyName('name', compress)]: getCallFunName('assignLet', compress),
+          [getKeyName('value', compress)]: [
+            {
+              [getKeyName('type', compress)]: getTypeName('member', compress),
+              [getKeyName('value', compress)]: target
+            },
+            {
+              [getKeyName('type', compress)]: getTypeName('customize-function', compress),
+              [getKeyName('name', compress)]: null,
+              [getKeyName('params', compress)]: method.value.params.map((param: any) => {
+                if (!param) return null
+                if (param.type === 'Identifier') return param.name
+                if (param.type === 'RestElement') return `...${param.argument.name}`
+                return `param_${param.type}`
+              }).filter(Boolean),
+              [getKeyName('body', compress)]: es5ToDsl(method.value.body.body, true)
+            },
+            '='
+          ]
+        })
+      }
+    }
+  })
+  
+  // 如果有继承，添加继承逻辑
+  if (superClass) {
+    methods.push({
+      [getKeyName('type', compress)]: getTypeName('call-function', compress),
+      [getKeyName('name', compress)]: getCallFunName('classExtends', compress),
+      [getKeyName('value', compress)]: [className, parseExpression(superClass)]
+    })
+  }
+  
+  return methods.length === 1 ? methods[0] : methods
 }
 
 export const dslParse = (es5Tree: any, isCompress = false, currentIgnoreFNames: string[] = []): any => {

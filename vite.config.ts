@@ -11,7 +11,7 @@ export default defineConfig({
   ],
   build: {
     rollupOptions: {
-      input: 'test.js'
+      input: 'test-class-expression.js'
     }
   }
 })

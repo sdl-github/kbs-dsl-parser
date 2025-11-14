@@ -32,6 +32,7 @@ var resolveFunKeysMap = {
   "callDoWhile": "cDW",
   "callFor": "cF",
   "callForIn": "cFI",
+  "callForOf": "cFO",
   "destroy": "d",
   "delete": "del",
   "createFunction": "f",
@@ -45,7 +46,11 @@ var resolveFunKeysMap = {
   "callSwitch": "s",
   "callSequence": "cS",
   "addLabel": "aL",
-  "removeLabel": "rL"
+  "removeLabel": "rL",
+  "templateLiteral": "tL",
+  "spreadElement": "sE",
+  "classExtends": "cE",
+  "destructureAssign": "dA"
 };
 var resolveTypeKeysMap = {
   "call-function": "c",
@@ -58,7 +63,12 @@ var resolveTypeKeysMap = {
   "prefix-vars": "p",
   "member": "m",
   "label-statement": "ls",
-  "this": "t"
+  "this": "t",
+  "array-pattern": "ap",
+  "object-pattern": "op",
+  "identifier-pattern": "ip",
+  "rest-pattern": "rp",
+  "unknown-pattern": "up"
 };
 var dslObjKeyNamesMap = {
   type: "t",
@@ -117,10 +127,20 @@ var es5ToDsl = (body, scopeBlock = false) => {
   body.filter(({ type }) => !ignoreTypes.includes(type)).forEach((item) => {
     const { type } = item;
     const resolvedItem = parseStatementOrDeclaration(item, raiseVars);
-    if (type === "FunctionDeclaration") {
-      resolvedModule.unshift(resolvedItem);
-    } else {
-      resolvedModule.push(resolvedItem);
+    if (Array.isArray(resolvedItem)) {
+      resolvedItem.forEach((subItem) => {
+        if (type === "FunctionDeclaration" || type === "ClassDeclaration") {
+          resolvedModule.unshift(subItem);
+        } else {
+          resolvedModule.push(subItem);
+        }
+      });
+    } else if (resolvedItem) {
+      if (type === "FunctionDeclaration" || type === "ClassDeclaration") {
+        resolvedModule.unshift(resolvedItem);
+      } else {
+        resolvedModule.push(resolvedItem);
+      }
     }
   });
   addRaiseVars(raiseVars, raiseVarStackTail);
@@ -174,12 +194,16 @@ var parseStatementOrDeclaration = (row, raiseVars = []) => {
       return parseForStatement(row, raiseVars);
     case "ForInStatement":
       return parseForInStatement(row, raiseVars);
+    case "ForOfStatement":
+      return parseForOfStatement(row, raiseVars);
     case "BreakStatement":
       return parseBreakStatement(row);
     case "ContinueStatement":
       return parseContinuteStatement(row);
     case "LabeledStatement":
       return parseLabeledStatement(row);
+    case "ClassDeclaration":
+      return parseClassDeclaration(row);
     default:
       if (!ignoreTypes.includes(type)) throw new Error(`\u610F\u6599\u4E4B\u5916\u7684 esTree node: ${type}`);
   }
@@ -261,6 +285,18 @@ var parseExpression = (expression) => {
     // 逻辑表达式
     case "LogicalExpression":
       return parseLogicalExpression(expression);
+    // 模板字符串
+    case "TemplateLiteral":
+      return parseTemplateLiteral(expression);
+    // 箭头函数
+    case "ArrowFunctionExpression":
+      return parseArrowFunctionExpression(expression);
+    // 展开语法
+    case "SpreadElement":
+      return parseSpreadElement(expression);
+    // 类表达式
+    case "ClassExpression":
+      return parseClassExpression(expression);
     default:
       throw new Error(`\u610F\u6599\u4E4B\u5916\u7684 expression \u7C7B\u578B\uFF1A${expression.type}`);
   }
@@ -321,7 +357,12 @@ var parseFunctionExpression = ({ id, params, body: { body } }, isDeclaration) =>
   return {
     [getKeyName("type", compress)]: isDeclaration ? getTypeName("declare-function", compress) : getTypeName("customize-function", compress),
     [getKeyName("name", compress)]: name,
-    [getKeyName("params", compress)]: params.map(({ name: name2 }) => name2),
+    [getKeyName("params", compress)]: params.map((param) => {
+      if (!param) return null;
+      if (param.type === "Identifier") return param.name;
+      if (param.type === "RestElement") return `...${param.argument.name}`;
+      return `param_${param.type}`;
+    }).filter(Boolean),
     [getKeyName("body", compress)]: es5ToDsl(body, true)
   };
 };
@@ -439,8 +480,22 @@ var parseAssignmentExpression = ({ left, right, operator }) => {
       [getKeyName("name", compress)]: getCallFunName("assignLet", compress),
       [getKeyName("value", compress)]: [parseMemberExpression(left), parseExpression(right), operator]
     };
+  } else if (left.type === "ArrayPattern" || left.type === "ObjectPattern") {
+    return {
+      [getKeyName("type", compress)]: getTypeName("call-function", compress),
+      [getKeyName("name", compress)]: getCallFunName("destructureAssign", compress),
+      [getKeyName("value", compress)]: [parsePattern(left), parseExpression(right), operator]
+    };
   }
-  throw new Error(`Uncaught SyntaxError: Invalid left-hand side in assignment`);
+  try {
+    return {
+      [getKeyName("type", compress)]: getTypeName("call-function", compress),
+      [getKeyName("name", compress)]: getCallFunName("assignLet", compress),
+      [getKeyName("value", compress)]: [parseExpression(left), parseExpression(right), operator]
+    };
+  } catch (e) {
+    throw new Error(`Uncaught SyntaxError: Invalid left-hand side in assignment`);
+  }
 };
 var parseUpdateExpression = ({ operator, argument, prefix }) => {
   if (argument.type === "Identifier") {
@@ -583,6 +638,39 @@ var parseForInStatement = ({ left, right, body }, raiseVars) => {
     ]
   };
 };
+var parseForOfStatement = ({ left, right, body }, raiseVars) => {
+  let leftDsl;
+  switch (left.type) {
+    case "Identifier":
+      leftDsl = [left.name];
+      break;
+    case "MemberExpression":
+      leftDsl = parseMemberExpression(left);
+      break;
+    case "VariableDeclaration":
+      leftDsl = parseVariableDeclaration(left, raiseVars);
+      break;
+    default:
+      throw new Error(`\u672A\u77E5\u7684 for...of \u521D\u59CB\u5316\u7C7B\u578B\uFF1A${left.type}`);
+  }
+  return {
+    [getKeyName("type", compress)]: getTypeName("call-function", compress),
+    [getKeyName("name", compress)]: getCallFunName("callBlockStatement", compress),
+    [getKeyName("value", compress)]: [
+      [
+        {
+          [getKeyName("type", compress)]: getTypeName("call-function", compress),
+          [getKeyName("name", compress)]: getCallFunName("callForOf", compress),
+          [getKeyName("value", compress)]: [
+            leftDsl,
+            parseExpression(right),
+            parseStatementOrDeclaration(body, raiseVars)
+          ]
+        }
+      ]
+    ]
+  };
+};
 var parseBreakStatement = ({ label }) => {
   return {
     [getKeyName("type", compress)]: getTypeName("call-function", compress),
@@ -613,6 +701,188 @@ var parseLabeledStatement = ({ label, body }) => {
       }
     ]
   };
+};
+var parseSpreadElement = ({ argument }) => {
+  return {
+    [getKeyName("type", compress)]: getTypeName("call-function", compress),
+    [getKeyName("name", compress)]: getCallFunName("spreadElement", compress),
+    [getKeyName("value", compress)]: parseExpression(argument)
+  };
+};
+var parseArrowFunctionExpression = ({ params, body, async }) => {
+  const functionBody = body.type === "BlockStatement" ? es5ToDsl(body.body, true) : [
+    {
+      [getKeyName("type", compress)]: getTypeName("prefix-vars", compress),
+      [getKeyName("value", compress)]: []
+    },
+    {
+      [getKeyName("type", compress)]: getTypeName("call-function", compress),
+      [getKeyName("name", compress)]: getCallFunName("callReturn", compress),
+      [getKeyName("value", compress)]: [parseExpression(body)]
+    }
+  ];
+  return {
+    [getKeyName("type", compress)]: getTypeName("customize-function", compress),
+    [getKeyName("name", compress)]: null,
+    [getKeyName("params", compress)]: params.map((param) => {
+      if (!param) return null;
+      if (param.type === "Identifier") return param.name;
+      if (param.type === "RestElement") return `...${param.argument.name}`;
+      return `param_${param.type}`;
+    }).filter(Boolean),
+    [getKeyName("body", compress)]: functionBody,
+    [getKeyName("async", compress)]: async || false
+  };
+};
+var parseTemplateLiteral = ({ quasis, expressions }) => {
+  if (quasis.length === 1 && expressions.length === 0) {
+    return {
+      [getKeyName("type", compress)]: getTypeName("literal", compress),
+      [getKeyName("value", compress)]: quasis[0].value.cooked
+    };
+  }
+  const parts = [];
+  for (let i = 0; i < quasis.length; i++) {
+    if (quasis[i].value.cooked !== "") {
+      parts.push({
+        [getKeyName("type", compress)]: getTypeName("literal", compress),
+        [getKeyName("value", compress)]: quasis[i].value.cooked
+      });
+    }
+    if (i < expressions.length) {
+      parts.push(parseExpression(expressions[i]));
+    }
+  }
+  if (parts.length === 1) {
+    return parts[0];
+  }
+  return {
+    [getKeyName("type", compress)]: getTypeName("call-function", compress),
+    [getKeyName("name", compress)]: getCallFunName("templateLiteral", compress),
+    [getKeyName("value", compress)]: parts
+  };
+};
+var parsePattern = (pattern) => {
+  switch (pattern.type) {
+    case "ArrayPattern":
+      return {
+        [getKeyName("type", compress)]: getTypeName("array-pattern", compress),
+        [getKeyName("value", compress)]: pattern.elements.map(
+          (element) => element ? parsePattern(element) : null
+        )
+      };
+    case "ObjectPattern":
+      return {
+        [getKeyName("type", compress)]: getTypeName("object-pattern", compress),
+        [getKeyName("value", compress)]: pattern.properties.map((prop) => ({
+          [getKeyName("key", compress)]: prop.key.name,
+          [getKeyName("value", compress)]: parsePattern(prop.value)
+        }))
+      };
+    case "Identifier":
+      return {
+        [getKeyName("type", compress)]: getTypeName("identifier-pattern", compress),
+        [getKeyName("value", compress)]: pattern.name
+      };
+    case "RestElement":
+      return {
+        [getKeyName("type", compress)]: getTypeName("rest-pattern", compress),
+        [getKeyName("value", compress)]: parsePattern(pattern.argument)
+      };
+    default:
+      return {
+        [getKeyName("type", compress)]: getTypeName("unknown-pattern", compress),
+        [getKeyName("value", compress)]: pattern.type
+      };
+  }
+};
+var parseClassExpression = ({ id, superClass, body }) => {
+  const className = id ? id.name : `AnonymousClass_${Date.now()}`;
+  const classDeclaration = parseClassDeclaration({ id: { name: className }, superClass, body });
+  return {
+    [getKeyName("type", compress)]: getTypeName("call-function", compress),
+    [getKeyName("name", compress)]: getCallFunName("callFun", compress),
+    [getKeyName("value", compress)]: [
+      {
+        [getKeyName("type", compress)]: getTypeName("customize-function", compress),
+        [getKeyName("name", compress)]: null,
+        [getKeyName("params", compress)]: [],
+        [getKeyName("body", compress)]: [
+          {
+            [getKeyName("type", compress)]: getTypeName("prefix-vars", compress),
+            [getKeyName("value", compress)]: []
+          },
+          ...Array.isArray(classDeclaration) ? classDeclaration : [classDeclaration],
+          {
+            [getKeyName("type", compress)]: getTypeName("call-function", compress),
+            [getKeyName("name", compress)]: getCallFunName("callReturn", compress),
+            [getKeyName("value", compress)]: [{
+              [getKeyName("type", compress)]: getTypeName("call-function", compress),
+              [getKeyName("name", compress)]: getCallFunName("getConst", compress),
+              [getKeyName("value", compress)]: className
+            }]
+          }
+        ]
+      },
+      []
+    ]
+  };
+};
+var parseClassDeclaration = ({ id, superClass, body }) => {
+  const className = id ? id.name : null;
+  const methods = [];
+  body.body.forEach((method) => {
+    if (method.type === "MethodDefinition") {
+      const methodName = method.key.name;
+      const isConstructor = method.kind === "constructor";
+      const isStatic = method.static;
+      if (isConstructor) {
+        methods.unshift({
+          [getKeyName("type", compress)]: getTypeName("declare-function", compress),
+          [getKeyName("name", compress)]: className,
+          [getKeyName("params", compress)]: method.value.params.map((param) => {
+            if (!param) return null;
+            if (param.type === "Identifier") return param.name;
+            if (param.type === "RestElement") return `...${param.argument.name}`;
+            return `param_${param.type}`;
+          }).filter(Boolean),
+          [getKeyName("body", compress)]: es5ToDsl(method.value.body.body, true)
+        });
+      } else {
+        const target = isStatic ? [className, methodName] : [className, "prototype", methodName];
+        methods.push({
+          [getKeyName("type", compress)]: getTypeName("call-function", compress),
+          [getKeyName("name", compress)]: getCallFunName("assignLet", compress),
+          [getKeyName("value", compress)]: [
+            {
+              [getKeyName("type", compress)]: getTypeName("member", compress),
+              [getKeyName("value", compress)]: target
+            },
+            {
+              [getKeyName("type", compress)]: getTypeName("customize-function", compress),
+              [getKeyName("name", compress)]: null,
+              [getKeyName("params", compress)]: method.value.params.map((param) => {
+                if (!param) return null;
+                if (param.type === "Identifier") return param.name;
+                if (param.type === "RestElement") return `...${param.argument.name}`;
+                return `param_${param.type}`;
+              }).filter(Boolean),
+              [getKeyName("body", compress)]: es5ToDsl(method.value.body.body, true)
+            },
+            "="
+          ]
+        });
+      }
+    }
+  });
+  if (superClass) {
+    methods.push({
+      [getKeyName("type", compress)]: getTypeName("call-function", compress),
+      [getKeyName("name", compress)]: getCallFunName("classExtends", compress),
+      [getKeyName("value", compress)]: [className, parseExpression(superClass)]
+    });
+  }
+  return methods.length === 1 ? methods[0] : methods;
 };
 var dslParse = (es5Tree, isCompress = false, currentIgnoreFNames = []) => {
   compress = isCompress;
