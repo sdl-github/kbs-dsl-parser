@@ -1,0 +1,13 @@
+{
+  "name": "vite-plugin-kbs-dsl-example",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0",
+    "vite-plugin-kbs-dsl": "file:.."
+  }
+}
