@@ -1100,7 +1100,8 @@ function kbsDslParser(options = {}) {
     ignoreFNames: ignoreFNames2 = [],
     watch = false,
     watchOptions,
-    test = () => true
+    test = () => true,
+    injectHtmlAttribute = true
   } = options;
   const wsOptions = { ...defaultWatchOptions, ...watchOptions };
   let websocketServer = null;
@@ -1127,6 +1128,7 @@ function kbsDslParser(options = {}) {
       }
     },
     generateBundle(_, bundle) {
+      const jsFileToDslMap = /* @__PURE__ */ new Map();
       Object.entries(bundle).forEach(([fileName, chunk]) => {
         if (chunk.type !== "chunk" || !fileName.endsWith(".js") || !test(fileName)) {
           return;
@@ -1159,11 +1161,32 @@ function kbsDslParser(options = {}) {
             fileName: dslFileName,
             source: dslStr
           });
+          jsFileToDslMap.set(fileName, dslFileName);
           if (watch) {
             dslStrMap[fileName] = dslStr;
           }
         } catch (error) {
           console.error(`\u89E3\u6790\u6587\u4EF6 ${fileName} \u65F6\u51FA\u9519:`, error);
+        }
+      });
+      Object.entries(bundle).forEach(([fileName, chunk]) => {
+        if (chunk.type === "asset" && fileName.endsWith(".html")) {
+          let htmlContent = chunk.source;
+          htmlContent = htmlContent.replace(
+            /<script([^>]*?)src="([^"]*\.js)"([^>]*?)>/g,
+            (match, beforeSrc, jsPath, afterSrc) => {
+              const jsFileName = jsPath.replace(/^.*\//, "");
+              const dslFileName = jsFileToDslMap.get(jsFileName);
+              if (dslFileName) {
+                const dslPath = jsPath.replace(/\.js$/, ".dsl.json");
+                if (!match.includes("mp-web-package-url=")) {
+                  return `<script${beforeSrc}src="${jsPath}"${afterSrc} mp-web-package-url="${dslPath}">`;
+                }
+              }
+              return match;
+            }
+          );
+          chunk.source = htmlContent;
         }
       });
     },
@@ -1183,7 +1206,23 @@ function kbsDslParser(options = {}) {
     },
     buildStart() {
       Object.keys(dslStrMap).forEach((key) => delete dslStrMap[key]);
-    }
+    },
+    transformIndexHtml: injectHtmlAttribute ? {
+      order: "post",
+      handler(html, context) {
+        return html.replace(
+          /<script([^>]*?)src="([^"]*\.js)"([^>]*?)>/g,
+          (match, beforeSrc, jsPath, afterSrc) => {
+            const jsFileName = jsPath.replace(/^.*\//, "");
+            if (!match.includes("mp-web-package-url=")) {
+              const dslPath = jsPath.replace(/\.js$/, ".dsl.json");
+              return `<script${beforeSrc}src="${jsPath}"${afterSrc} mp-web-package-url="${dslPath}">`;
+            }
+            return match;
+          }
+        );
+      }
+    } : void 0
   };
 }
 var index_default = kbsDslParser;

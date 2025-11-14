@@ -13,6 +13,7 @@ export interface KbsDslParserOptions {
     port?: number
   }
   test?: (id: string) => boolean
+  injectHtmlAttribute?: boolean
 }
 
 const defaultWatchOptions = {
@@ -27,7 +28,8 @@ export function kbsDslParser(options: KbsDslParserOptions = {}): Plugin {
     ignoreFNames = [],
     watch = false,
     watchOptions,
-    test = () => true
+    test = () => true,
+    injectHtmlAttribute = true
   } = options
 
   const wsOptions = { ...defaultWatchOptions, ...watchOptions }
@@ -58,6 +60,8 @@ export function kbsDslParser(options: KbsDslParserOptions = {}): Plugin {
     },
 
     generateBundle(_, bundle) {
+      const jsFileToDslMap = new Map<string, string>()
+      
       Object.entries(bundle).forEach(([fileName, chunk]) => {
         if (chunk.type !== 'chunk' || !fileName.endsWith('.js') || !test(fileName)) {
           return
@@ -95,11 +99,44 @@ export function kbsDslParser(options: KbsDslParserOptions = {}): Plugin {
             source: dslStr
           })
 
+          // 记录 JS 文件到 DSL 文件的映射
+          jsFileToDslMap.set(fileName, dslFileName)
+
           if (watch) {
             dslStrMap[fileName] = dslStr
           }
         } catch (error) {
           console.error(`解析文件 ${fileName} 时出错:`, error)
+        }
+      })
+
+      // 处理 HTML 文件，添加 mp-web-package-url 属性
+      Object.entries(bundle).forEach(([fileName, chunk]) => {
+        if (chunk.type === 'asset' && fileName.endsWith('.html')) {
+          let htmlContent = chunk.source as string
+          
+          // 更灵活的正则表达式来匹配 script 标签
+          htmlContent = htmlContent.replace(
+            /<script([^>]*?)src="([^"]*\.js)"([^>]*?)>/g,
+            (match, beforeSrc, jsPath, afterSrc) => {
+              // 提取文件名（去掉路径前缀）
+              const jsFileName = jsPath.replace(/^.*\//, '')
+              const dslFileName = jsFileToDslMap.get(jsFileName)
+              
+              if (dslFileName) {
+                const dslPath = jsPath.replace(/\.js$/, '.dsl.json')
+                // 检查是否已经有 mp-web-package-url 属性
+                if (!match.includes('mp-web-package-url=')) {
+                  // 在 > 之前添加属性
+                  return `<script${beforeSrc}src="${jsPath}"${afterSrc} mp-web-package-url="${dslPath}">`
+                }
+              }
+              return match
+            }
+          )
+          
+          // 更新 HTML 文件内容
+          chunk.source = htmlContent
         }
       })
     },
@@ -123,7 +160,28 @@ export function kbsDslParser(options: KbsDslParserOptions = {}): Plugin {
     buildStart() {
       // 清空之前的映射
       Object.keys(dslStrMap).forEach(key => delete dslStrMap[key])
-    }
+    },
+
+    transformIndexHtml: injectHtmlAttribute ? {
+      order: 'post',
+      handler(html, context) {
+        // 在 HTML 转换的最后阶段添加 mp-web-package-url 属性
+        return html.replace(
+          /<script([^>]*?)src="([^"]*\.js)"([^>]*?)>/g,
+          (match, beforeSrc, jsPath, afterSrc) => {
+            // 提取文件名（去掉路径前缀）
+            const jsFileName = jsPath.replace(/^.*\//, '')
+            
+            // 检查是否已经有 mp-web-package-url 属性
+            if (!match.includes('mp-web-package-url=')) {
+              const dslPath = jsPath.replace(/\.js$/, '.dsl.json')
+              return `<script${beforeSrc}src="${jsPath}"${afterSrc} mp-web-package-url="${dslPath}">`
+            }
+            return match
+          }
+        )
+      }
+    } : undefined
   }
 }
 

@@ -10,6 +10,7 @@ interface KbsDslParserOptions {
         port?: number;
     };
     test?: (id: string) => boolean;
+    injectHtmlAttribute?: boolean;
 }
 declare function kbsDslParser(options?: KbsDslParserOptions): Plugin;
 

@@ -174,6 +174,7 @@ export default defineConfig({
 | `watch` | `boolean` | `false` | 是否开启 WebSocket 监听模式 |
 | `watchOptions` | `object` | `{ port: 9900, host: 'localhost', protocol: 'ws' }` | WebSocket 服务器配置 |
 | `test` | `function` | `() => true` | 文件过滤函数，接收文件 ID，返回布尔值 |
+| `injectHtmlAttribute` | `boolean` | `true` | 是否在 HTML 中为 script 标签添加 mp-web-package-url 属性 |
 
 ## 功能特性
 
@@ -186,10 +187,27 @@ export default defineConfig({
 - ✅ 完整的 ES5 语法支持
 - ✅ ES6+ 语法支持（模板字符串、箭头函数等）
 - ✅ Vue 项目兼容性
+- ✅ HTML 属性注入（自动添加 DSL 文件路径）
 
 ## 输出
 
 插件会为每个匹配的 `.js` 文件生成对应的 `.dsl.json` 文件，包含转换后的 KBS DSL 结构。
+
+## HTML 属性注入
+
+插件会自动在生成的 HTML 文件中为每个 `<script>` 标签添加 `mp-web-package-url` 属性，指向对应的 DSL 文件：
+
+```html
+<!-- 构建前 -->
+<script type="module" src="/assets/index-VzG3rHVd.js"></script>
+
+<!-- 构建后 -->
+<script type="module" src="/assets/index-VzG3rHVd.js" mp-web-package-url="/assets/index-VzG3rHVd.dsl.json"></script>
+```
+
+这样运行时可以通过 `script.getAttribute('mp-web-package-url')` 获取 DSL 文件路径。
+
+可以通过 `injectHtmlAttribute: false` 禁用此功能。
 
 ## 支持的语法
 

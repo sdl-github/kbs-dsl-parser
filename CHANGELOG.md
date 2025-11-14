@@ -1,5 +1,36 @@
 # Changelog
 
+## [2.7.0] - 2024-11-14
+
+### ✨ New Features
+- 添加 HTML 注入功能：自动为 `<script>` 标签添加 `mp-web-package-url` 属性
+- 新增 `injectHtmlAttribute` 配置选项（默认启用）
+- 使用 Vite 的 `transformIndexHtml` 钩子处理 HTML 文件
+- 支持在运行时通过 HTML 属性获取 DSL 文件路径
+
+### 🔧 Technical Changes
+- 添加 `transformIndexHtml` 钩子，在构建后期修改 HTML
+- 使用正则表达式匹配和替换 `<script>` 标签
+- 自动生成对应的 DSL 文件路径
+- 支持配置是否启用 HTML 属性注入
+
+### 📦 HTML 注入示例
+```html
+<!-- 之前 -->
+<script type="module" crossorigin src="/assets/index-VzG3rHVd.js"></script>
+
+<!-- 之后 -->
+<script type="module" crossorigin src="/assets/index-VzG3rHVd.js" mp-web-package-url="/assets/index-VzG3rHVd.dsl.json"></script>
+```
+
+### ⚙️ 配置选项
+```typescript
+kbsDslParser({
+  injectHtmlAttribute: true, // 默认启用，设为 false 可禁用
+  // ... 其他选项
+})
+```
+
 ## [2.6.0] - 2024-11-14
 
 ### ✨ New Features
