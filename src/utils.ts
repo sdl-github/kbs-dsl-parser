@@ -46,7 +46,19 @@ const resolveFunKeysMap: Record<string, string> = {
   'templateLiteral': 'tL',
   'spreadElement': 'sE',
   'classExtends': 'cE',
-  'destructureAssign': 'dA'
+  'destructureAssign': 'dA',
+  'getImportMeta': 'gIM',
+  'getMetaProperty': 'gMP',
+  'optionalMember': 'oM',
+  'optionalCall': 'oC',
+  'exportNamed': 'eN',
+  'exportDefault': 'eD',
+  'exportAll': 'eA',
+  'importDefault': 'iD',
+  'importNamespace': 'iNS',
+  'importNamed': 'iN',
+  'dynamicImport': 'dI',
+  'getImport': 'gI'
 }
 
 const resolveTypeKeysMap: Record<string, string> = {

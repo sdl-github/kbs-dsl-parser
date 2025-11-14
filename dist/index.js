@@ -50,7 +50,19 @@ var resolveFunKeysMap = {
   "templateLiteral": "tL",
   "spreadElement": "sE",
   "classExtends": "cE",
-  "destructureAssign": "dA"
+  "destructureAssign": "dA",
+  "getImportMeta": "gIM",
+  "getMetaProperty": "gMP",
+  "optionalMember": "oM",
+  "optionalCall": "oC",
+  "exportNamed": "eN",
+  "exportDefault": "eD",
+  "exportAll": "eA",
+  "importDefault": "iD",
+  "importNamespace": "iNS",
+  "importNamed": "iN",
+  "dynamicImport": "dI",
+  "getImport": "gI"
 };
 var resolveTypeKeysMap = {
   "call-function": "c",
@@ -131,12 +143,16 @@ var es5ToDsl = (body, scopeBlock = false) => {
       resolvedItem.forEach((subItem) => {
         if (type === "FunctionDeclaration" || type === "ClassDeclaration") {
           resolvedModule.unshift(subItem);
+        } else if (type === "ImportDeclaration") {
+          resolvedModule.unshift(subItem);
         } else {
           resolvedModule.push(subItem);
         }
       });
     } else if (resolvedItem) {
       if (type === "FunctionDeclaration" || type === "ClassDeclaration") {
+        resolvedModule.unshift(resolvedItem);
+      } else if (type === "ImportDeclaration") {
         resolvedModule.unshift(resolvedItem);
       } else {
         resolvedModule.push(resolvedItem);
@@ -204,6 +220,14 @@ var parseStatementOrDeclaration = (row, raiseVars = []) => {
       return parseLabeledStatement(row);
     case "ClassDeclaration":
       return parseClassDeclaration(row);
+    case "ExportNamedDeclaration":
+      return parseExportNamedDeclaration(row, raiseVars);
+    case "ExportDefaultDeclaration":
+      return parseExportDefaultDeclaration(row, raiseVars);
+    case "ExportAllDeclaration":
+      return parseExportAllDeclaration(row);
+    case "ImportDeclaration":
+      return parseImportDeclaration(row);
     default:
       if (!ignoreTypes.includes(type)) throw new Error(`\u610F\u6599\u4E4B\u5916\u7684 esTree node: ${type}`);
   }
@@ -297,6 +321,18 @@ var parseExpression = (expression) => {
     // 类表达式
     case "ClassExpression":
       return parseClassExpression(expression);
+    // import.meta
+    case "MetaProperty":
+      return parseMetaProperty(expression);
+    // 可选链
+    case "OptionalMemberExpression":
+      return parseOptionalMemberExpression(expression);
+    // 可选调用
+    case "OptionalCallExpression":
+      return parseOptionalCallExpression(expression);
+    // 动态导入
+    case "Import":
+      return parseDynamicImport(expression);
     default:
       throw new Error(`\u610F\u6599\u4E4B\u5916\u7684 expression \u7C7B\u578B\uFF1A${expression.type}`);
   }
@@ -336,6 +372,13 @@ var parseNewExpression = ({ callee, arguments: args }) => {
   };
 };
 var parseCallExpression = ({ callee, arguments: args }) => {
+  if (callee.type === "Import") {
+    return {
+      [getKeyName("type", compress)]: getTypeName("call-function", compress),
+      [getKeyName("name", compress)]: getCallFunName("dynamicImport", compress),
+      [getKeyName("value", compress)]: args.map((item) => parseExpression(item))
+    };
+  }
   return {
     [getKeyName("type", compress)]: getTypeName("call-function", compress),
     [getKeyName("name", compress)]: getCallFunName("callFun", compress),
@@ -762,6 +805,58 @@ var parseTemplateLiteral = ({ quasis, expressions }) => {
     [getKeyName("value", compress)]: parts
   };
 };
+var parseDynamicImport = (expression) => {
+  return {
+    [getKeyName("type", compress)]: getTypeName("call-function", compress),
+    [getKeyName("name", compress)]: getCallFunName("getImport", compress),
+    [getKeyName("value", compress)]: []
+  };
+};
+var parseMetaProperty = ({ meta, property }) => {
+  if (meta.name === "import" && property.name === "meta") {
+    return {
+      [getKeyName("type", compress)]: getTypeName("call-function", compress),
+      [getKeyName("name", compress)]: getCallFunName("getImportMeta", compress),
+      [getKeyName("value", compress)]: []
+    };
+  }
+  return {
+    [getKeyName("type", compress)]: getTypeName("call-function", compress),
+    [getKeyName("name", compress)]: getCallFunName("getMetaProperty", compress),
+    [getKeyName("value", compress)]: [meta.name, property.name]
+  };
+};
+var parseOptionalMemberExpression = ({ object, property, computed, optional }) => {
+  const memberValue = [];
+  if (object.type === "Identifier") {
+    memberValue.push(object.name);
+  } else {
+    memberValue.push(parseExpression(object));
+  }
+  memberValue.push(computed ? parseExpression(property) : property.name);
+  return {
+    [getKeyName("type", compress)]: getTypeName("call-function", compress),
+    [getKeyName("name", compress)]: getCallFunName("optionalMember", compress),
+    [getKeyName("value", compress)]: [
+      {
+        [getKeyName("type", compress)]: getTypeName("member", compress),
+        [getKeyName("value", compress)]: memberValue
+      },
+      optional
+    ]
+  };
+};
+var parseOptionalCallExpression = ({ callee, arguments: args, optional }) => {
+  return {
+    [getKeyName("type", compress)]: getTypeName("call-function", compress),
+    [getKeyName("name", compress)]: getCallFunName("optionalCall", compress),
+    [getKeyName("value", compress)]: [
+      parseExpression(callee),
+      args.map((item) => parseExpression(item)),
+      optional
+    ]
+  };
+};
 var parsePattern = (pattern) => {
   switch (pattern.type) {
     case "ArrayPattern":
@@ -884,6 +979,108 @@ var parseClassDeclaration = ({ id, superClass, body }) => {
   }
   return methods.length === 1 ? methods[0] : methods;
 };
+var parseExportNamedDeclaration = ({ declaration, specifiers, source }, raiseVars) => {
+  const exports = [];
+  if (declaration) {
+    const declarationResult = parseStatementOrDeclaration(declaration, raiseVars);
+    if (declarationResult) {
+      exports.push(declarationResult);
+    }
+    if (declaration.type === "VariableDeclaration") {
+      declaration.declarations.forEach((decl) => {
+        exports.push({
+          [getKeyName("type", compress)]: getTypeName("call-function", compress),
+          [getKeyName("name", compress)]: getCallFunName("exportNamed", compress),
+          [getKeyName("value", compress)]: [decl.id.name, decl.id.name]
+        });
+      });
+    } else if (declaration.id) {
+      exports.push({
+        [getKeyName("type", compress)]: getTypeName("call-function", compress),
+        [getKeyName("name", compress)]: getCallFunName("exportNamed", compress),
+        [getKeyName("value", compress)]: [declaration.id.name, declaration.id.name]
+      });
+    }
+  } else if (specifiers.length > 0) {
+    specifiers.forEach((spec) => {
+      exports.push({
+        [getKeyName("type", compress)]: getTypeName("call-function", compress),
+        [getKeyName("name", compress)]: getCallFunName("exportNamed", compress),
+        [getKeyName("value", compress)]: [
+          spec.local.name,
+          spec.exported.name,
+          source ? source.value : null
+        ]
+      });
+    });
+  }
+  return exports.length === 1 ? exports[0] : exports;
+};
+var parseExportDefaultDeclaration = ({ declaration }, raiseVars) => {
+  const exports = [];
+  if (declaration.type === "Identifier") {
+    exports.push({
+      [getKeyName("type", compress)]: getTypeName("call-function", compress),
+      [getKeyName("name", compress)]: getCallFunName("exportDefault", compress),
+      [getKeyName("value", compress)]: [{
+        [getKeyName("type", compress)]: getTypeName("call-function", compress),
+        [getKeyName("name", compress)]: getCallFunName("getConst", compress),
+        [getKeyName("value", compress)]: declaration.name
+      }]
+    });
+  } else {
+    const declarationResult = parseStatementOrDeclaration(declaration, raiseVars) || parseExpression(declaration);
+    if (declarationResult) {
+      exports.push(declarationResult);
+    }
+    exports.push({
+      [getKeyName("type", compress)]: getTypeName("call-function", compress),
+      [getKeyName("name", compress)]: getCallFunName("exportDefault", compress),
+      [getKeyName("value", compress)]: [declarationResult]
+    });
+  }
+  return exports.length === 1 ? exports[0] : exports;
+};
+var parseExportAllDeclaration = ({ source }) => {
+  return {
+    [getKeyName("type", compress)]: getTypeName("call-function", compress),
+    [getKeyName("name", compress)]: getCallFunName("exportAll", compress),
+    [getKeyName("value", compress)]: [source.value]
+  };
+};
+var parseImportDeclaration = ({ specifiers, source }) => {
+  const imports = [];
+  specifiers.forEach((spec) => {
+    switch (spec.type) {
+      case "ImportDefaultSpecifier":
+        imports.push({
+          [getKeyName("type", compress)]: getTypeName("call-function", compress),
+          [getKeyName("name", compress)]: getCallFunName("importDefault", compress),
+          [getKeyName("value", compress)]: [spec.local.name, source.value]
+        });
+        break;
+      case "ImportNamespaceSpecifier":
+        imports.push({
+          [getKeyName("type", compress)]: getTypeName("call-function", compress),
+          [getKeyName("name", compress)]: getCallFunName("importNamespace", compress),
+          [getKeyName("value", compress)]: [spec.local.name, source.value]
+        });
+        break;
+      case "ImportSpecifier":
+        imports.push({
+          [getKeyName("type", compress)]: getTypeName("call-function", compress),
+          [getKeyName("name", compress)]: getCallFunName("importNamed", compress),
+          [getKeyName("value", compress)]: [
+            spec.local.name,
+            spec.imported.name,
+            source.value
+          ]
+        });
+        break;
+    }
+  });
+  return imports.length === 1 ? imports[0] : imports;
+};
 var dslParse = (es5Tree, isCompress = false, currentIgnoreFNames = []) => {
   compress = isCompress;
   ignoreFNames = currentIgnoreFNames;
@@ -935,7 +1132,25 @@ function kbsDslParser(options = {}) {
           return;
         }
         try {
-          const ast = parse(chunk.code);
+          const ast = parse(chunk.code, {
+            sourceType: "module",
+            allowImportExportEverywhere: true,
+            allowReturnOutsideFunction: true,
+            plugins: [
+              "jsx",
+              "typescript",
+              "decorators-legacy",
+              "classProperties",
+              "objectRestSpread",
+              "functionBind",
+              "exportDefaultFrom",
+              "exportNamespaceFrom",
+              "dynamicImport",
+              "nullishCoalescingOperator",
+              "optionalChaining",
+              "importMeta"
+            ]
+          });
           const dsl = dslParse(ast, compress2, ignoreFNames2);
           const dslStr = JSON.stringify(dsl);
           const dslFileName = fileName.replace(/\.js$/, ".dsl.json");

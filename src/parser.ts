@@ -57,9 +57,12 @@ const es5ToDsl = (body: Statement[], scopeBlock = false): any[] => {
       const resolvedItem = parseStatementOrDeclaration(item, raiseVars)
       
       if (Array.isArray(resolvedItem)) {
-        // 处理返回数组的情况（如类声明）
+        // 处理返回数组的情况（如类声明、导入导出语句）
         resolvedItem.forEach(subItem => {
           if (type === 'FunctionDeclaration' || type === 'ClassDeclaration') {
+            resolvedModule.unshift(subItem)
+          } else if (type === 'ImportDeclaration') {
+            // 导入语句放在最前面
             resolvedModule.unshift(subItem)
           } else {
             resolvedModule.push(subItem)
@@ -68,6 +71,9 @@ const es5ToDsl = (body: Statement[], scopeBlock = false): any[] => {
       } else if (resolvedItem) {
         if (type === 'FunctionDeclaration' || type === 'ClassDeclaration') {
           // 函数声明和类声明需要前置
+          resolvedModule.unshift(resolvedItem)
+        } else if (type === 'ImportDeclaration') {
+          // 导入语句放在最前面
           resolvedModule.unshift(resolvedItem)
         } else {
           resolvedModule.push(resolvedItem)
@@ -143,6 +149,14 @@ const parseStatementOrDeclaration = (row: any, raiseVars: string[] = []): any =>
       return parseLabeledStatement(row)
     case 'ClassDeclaration':
       return parseClassDeclaration(row)
+    case 'ExportNamedDeclaration':
+      return parseExportNamedDeclaration(row, raiseVars)
+    case 'ExportDefaultDeclaration':
+      return parseExportDefaultDeclaration(row, raiseVars)
+    case 'ExportAllDeclaration':
+      return parseExportAllDeclaration(row)
+    case 'ImportDeclaration':
+      return parseImportDeclaration(row)
     default:
       // 非不处理类型，需要报错
       if (!ignoreTypes.includes(type)) throw new Error(`意料之外的 esTree node: ${type}`)
@@ -244,6 +258,18 @@ const parseExpression = (expression: any): any => {
     // 类表达式
     case 'ClassExpression':
       return parseClassExpression(expression)
+    // import.meta
+    case 'MetaProperty':
+      return parseMetaProperty(expression)
+    // 可选链
+    case 'OptionalMemberExpression':
+      return parseOptionalMemberExpression(expression)
+    // 可选调用
+    case 'OptionalCallExpression':
+      return parseOptionalCallExpression(expression)
+    // 动态导入
+    case 'Import':
+      return parseDynamicImport(expression)
     default:
       throw new Error(`意料之外的 expression 类型：${expression.type}`)
   }
@@ -289,6 +315,15 @@ const parseNewExpression = ({ callee, arguments: args }: any): any => {
 
 // 调用函数
 const parseCallExpression = ({ callee, arguments: args }: any): any => {
+  // 检查是否是动态导入
+  if (callee.type === 'Import') {
+    return {
+      [getKeyName('type', compress)]: getTypeName('call-function', compress),
+      [getKeyName('name', compress)]: getCallFunName('dynamicImport', compress),
+      [getKeyName('value', compress)]: args.map((item: any) => parseExpression(item))
+    }
+  }
+  
   return {
     [getKeyName('type', compress)]: getTypeName('call-function', compress),
     [getKeyName('name', compress)]: getCallFunName('callFun', compress),
@@ -822,6 +857,70 @@ const parseTemplateLiteral = ({ quasis, expressions }: any): any => {
   }
 }
 
+// 动态导入
+const parseDynamicImport = (expression: any): any => {
+  // Import 节点通常不会单独出现，而是作为 CallExpression 的 callee
+  return {
+    [getKeyName('type', compress)]: getTypeName('call-function', compress),
+    [getKeyName('name', compress)]: getCallFunName('getImport', compress),
+    [getKeyName('value', compress)]: []
+  }
+}
+
+// import.meta 属性
+const parseMetaProperty = ({ meta, property }: any): any => {
+  if (meta.name === 'import' && property.name === 'meta') {
+    return {
+      [getKeyName('type', compress)]: getTypeName('call-function', compress),
+      [getKeyName('name', compress)]: getCallFunName('getImportMeta', compress),
+      [getKeyName('value', compress)]: []
+    }
+  }
+  return {
+    [getKeyName('type', compress)]: getTypeName('call-function', compress),
+    [getKeyName('name', compress)]: getCallFunName('getMetaProperty', compress),
+    [getKeyName('value', compress)]: [meta.name, property.name]
+  }
+}
+
+// 可选成员访问
+const parseOptionalMemberExpression = ({ object, property, computed, optional }: any): any => {
+  const memberValue: any[] = []
+  
+  if (object.type === 'Identifier') {
+    memberValue.push(object.name)
+  } else {
+    memberValue.push(parseExpression(object))
+  }
+  
+  memberValue.push(computed ? parseExpression(property) : property.name)
+  
+  return {
+    [getKeyName('type', compress)]: getTypeName('call-function', compress),
+    [getKeyName('name', compress)]: getCallFunName('optionalMember', compress),
+    [getKeyName('value', compress)]: [
+      {
+        [getKeyName('type', compress)]: getTypeName('member', compress),
+        [getKeyName('value', compress)]: memberValue
+      },
+      optional
+    ]
+  }
+}
+
+// 可选调用
+const parseOptionalCallExpression = ({ callee, arguments: args, optional }: any): any => {
+  return {
+    [getKeyName('type', compress)]: getTypeName('call-function', compress),
+    [getKeyName('name', compress)]: getCallFunName('optionalCall', compress),
+    [getKeyName('value', compress)]: [
+      parseExpression(callee),
+      args.map((item: any) => parseExpression(item)),
+      optional
+    ]
+  }
+}
+
 // 解构模式
 const parsePattern = (pattern: any): any => {
   switch (pattern.type) {
@@ -963,6 +1062,129 @@ const parseClassDeclaration = ({ id, superClass, body }: any): any => {
   }
   
   return methods.length === 1 ? methods[0] : methods
+}
+
+// 命名导出声明
+const parseExportNamedDeclaration = ({ declaration, specifiers, source }: any, raiseVars: string[]): any => {
+  const exports: any[] = []
+  
+  if (declaration) {
+    // export const/let/var/function/class
+    const declarationResult = parseStatementOrDeclaration(declaration, raiseVars)
+    if (declarationResult) {
+      exports.push(declarationResult)
+    }
+    
+    // 添加导出信息
+    if (declaration.type === 'VariableDeclaration') {
+      declaration.declarations.forEach((decl: any) => {
+        exports.push({
+          [getKeyName('type', compress)]: getTypeName('call-function', compress),
+          [getKeyName('name', compress)]: getCallFunName('exportNamed', compress),
+          [getKeyName('value', compress)]: [decl.id.name, decl.id.name]
+        })
+      })
+    } else if (declaration.id) {
+      exports.push({
+        [getKeyName('type', compress)]: getTypeName('call-function', compress),
+        [getKeyName('name', compress)]: getCallFunName('exportNamed', compress),
+        [getKeyName('value', compress)]: [declaration.id.name, declaration.id.name]
+      })
+    }
+  } else if (specifiers.length > 0) {
+    // export { name1, name2 } from 'module' 或 export { name1, name2 }
+    specifiers.forEach((spec: any) => {
+      exports.push({
+        [getKeyName('type', compress)]: getTypeName('call-function', compress),
+        [getKeyName('name', compress)]: getCallFunName('exportNamed', compress),
+        [getKeyName('value', compress)]: [
+          spec.local.name,
+          spec.exported.name,
+          source ? source.value : null
+        ]
+      })
+    })
+  }
+  
+  return exports.length === 1 ? exports[0] : exports
+}
+
+// 默认导出声明
+const parseExportDefaultDeclaration = ({ declaration }: any, raiseVars: string[]): any => {
+  const exports: any[] = []
+  
+  if (declaration.type === 'Identifier') {
+    // export default variableName
+    exports.push({
+      [getKeyName('type', compress)]: getTypeName('call-function', compress),
+      [getKeyName('name', compress)]: getCallFunName('exportDefault', compress),
+      [getKeyName('value', compress)]: [{
+        [getKeyName('type', compress)]: getTypeName('call-function', compress),
+        [getKeyName('name', compress)]: getCallFunName('getConst', compress),
+        [getKeyName('value', compress)]: declaration.name
+      }]
+    })
+  } else {
+    // export default expression/function/class
+    const declarationResult = parseStatementOrDeclaration(declaration, raiseVars) || parseExpression(declaration)
+    if (declarationResult) {
+      exports.push(declarationResult)
+    }
+    
+    exports.push({
+      [getKeyName('type', compress)]: getTypeName('call-function', compress),
+      [getKeyName('name', compress)]: getCallFunName('exportDefault', compress),
+      [getKeyName('value', compress)]: [declarationResult]
+    })
+  }
+  
+  return exports.length === 1 ? exports[0] : exports
+}
+
+// 全部导出声明
+const parseExportAllDeclaration = ({ source }: any): any => {
+  return {
+    [getKeyName('type', compress)]: getTypeName('call-function', compress),
+    [getKeyName('name', compress)]: getCallFunName('exportAll', compress),
+    [getKeyName('value', compress)]: [source.value]
+  }
+}
+
+// 导入声明
+const parseImportDeclaration = ({ specifiers, source }: any): any => {
+  const imports: any[] = []
+  
+  specifiers.forEach((spec: any) => {
+    switch (spec.type) {
+      case 'ImportDefaultSpecifier':
+        imports.push({
+          [getKeyName('type', compress)]: getTypeName('call-function', compress),
+          [getKeyName('name', compress)]: getCallFunName('importDefault', compress),
+          [getKeyName('value', compress)]: [spec.local.name, source.value]
+        })
+        break
+      case 'ImportNamespaceSpecifier':
+        imports.push({
+          [getKeyName('type', compress)]: getTypeName('call-function', compress),
+          [getKeyName('name', compress)]: getCallFunName('importNamespace', compress),
+          [getKeyName('value', compress)]: [spec.local.name, source.value]
+        })
+        break
+      case 'ImportSpecifier':
+        imports.push({
+          [getKeyName('type', compress)]: getTypeName('call-function', compress),
+          [getKeyName('name', compress)]: getCallFunName('importNamed', compress),
+          [getKeyName('value', compress)]: [
+            spec.local.name,
+            spec.imported.name,
+            source.value
+          ]
+        })
+        break
+    }
+  })
+  
+  return imports.length === 1 ? imports[0] : imports
 }
 
 export const dslParse = (es5Tree: any, isCompress = false, currentIgnoreFNames: string[] = []): any => {

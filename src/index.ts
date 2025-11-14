@@ -64,7 +64,25 @@ export function kbsDslParser(options: KbsDslParserOptions = {}): Plugin {
         }
 
         try {
-          const ast = parse(chunk.code)
+          const ast = parse(chunk.code, {
+            sourceType: 'module',
+            allowImportExportEverywhere: true,
+            allowReturnOutsideFunction: true,
+            plugins: [
+              'jsx',
+              'typescript',
+              'decorators-legacy',
+              'classProperties',
+              'objectRestSpread',
+              'functionBind',
+              'exportDefaultFrom',
+              'exportNamespaceFrom',
+              'dynamicImport',
+              'nullishCoalescingOperator',
+              'optionalChaining',
+              'importMeta'
+            ]
+          })
           const dsl = dslParse(ast, compress, ignoreFNames)
           const dslStr = JSON.stringify(dsl)
           

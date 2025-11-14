@@ -11,7 +11,11 @@ export default defineConfig({
   ],
   build: {
     rollupOptions: {
-      input: 'test-class-expression.js'
+      input: 'test-import-syntax.js',
+      external: (id) => {
+        // 忽略动态导入的模块解析错误
+        return id.startsWith('./home') || id.startsWith('./about') || id.startsWith('./contact')
+      }
     }
   }
 })

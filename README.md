@@ -210,6 +210,16 @@ export default defineConfig({
 - **类声明**: `class MyClass` → 函数声明 + 原型方法
 - **类表达式**: `const MyClass = class {}` → IIFE 包装的类声明
 - **解构赋值**: 基本支持数组和对象解构
+- **import.meta**: `import.meta.env` → `getImportMeta` 调用
+- **可选链**: `obj?.prop?.method?.()` → 安全的属性访问
+- **空值合并**: `value ?? defaultValue` → 逻辑运算
+
+### ES 模块语法
+- **导入语句**: `import { name } from 'module'` → `importNamed` 调用
+- **导出语句**: `export const name = value` → `exportNamed` 调用
+- **默认导出**: `export default value` → `exportDefault` 调用
+- **重新导出**: `export { name } from 'module'` → 模块转发
+- **动态导入**: `import('./module.js')` → `dynamicImport` 调用
 
 ### Vue 项目支持
 插件已经过 Vue 3 项目测试，能够正确处理 Vue 编译后的 JavaScript 代码。
