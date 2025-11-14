@@ -1,5 +1,5 @@
 // sort-hand
-const resolveFunKeysMap = {
+const resolveFunKeysMap: Record<string, string> = {
   'getValue': 'gV',
   'let': 'l',
   'var': 'v',
@@ -39,10 +39,12 @@ const resolveFunKeysMap = {
   'callFun': 'c',
   'callTryCatch': 'cTC',
   'callSwitch': 's',
-  'callSequence': 'cS'
-};
+  'callSequence': 'cS',
+  'addLabel': 'aL',
+  'removeLabel': 'rL'
+}
 
-const resolveTypeKeysMap = {
+const resolveTypeKeysMap: Record<string, string> = {
   'call-function': 'c',
   'customize-function': 'f',
   'declare-function': 'd',
@@ -52,29 +54,30 @@ const resolveTypeKeysMap = {
   literal: 'l',
   'prefix-vars': 'p',
   'member': 'm',
-  'label-statement': 'ls'
-};
+  'label-statement': 'ls',
+  'this': 't'
+}
 
-const dslObjKeyNamesMap = {
+const dslObjKeyNamesMap: Record<string, string> = {
   type: 't',
   name: 'n',
   value: 'v',
   params: 'p',
   body: 'b',
   key: 'k'
-};
+}
 
-module.exports = {
-  getCallFunName: (name, compress = false) => {
-    if (!compress || !resolveFunKeysMap[name]) return name;
-    return resolveFunKeysMap[name];
-  },
-  getTypeName: (name, compress = false) => {
-    if (!compress || !resolveTypeKeysMap[name]) return name;
-    return resolveTypeKeysMap[name];
-  },
-  getKeyName: (name, compress = false) => {
-    if (!compress || !dslObjKeyNamesMap[name]) return name;
-    return dslObjKeyNamesMap[name];
-  }
-};
+export const getCallFunName = (name: string, compress = false): string => {
+  if (!compress || !resolveFunKeysMap[name]) return name
+  return resolveFunKeysMap[name]
+}
+
+export const getTypeName = (name: string, compress = false): string => {
+  if (!compress || !resolveTypeKeysMap[name]) return name
+  return resolveTypeKeysMap[name]
+}
+
+export const getKeyName = (name: string, compress = false): string => {
+  if (!compress || !dslObjKeyNamesMap[name]) return name
+  return dslObjKeyNamesMap[name]
+}

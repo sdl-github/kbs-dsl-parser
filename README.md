@@ -1,10 +1,25 @@
-# kbs-dsl-parser
+# vite-plugin-kbs-dsl
 
-将 es5 转成 KBS DSL 的 webpack 插件。
-用法如下：
+Vite plugin for transforming ES5 code to KBS DSL format.
 
-```javascript
-const KbsDslParserPlugin = require('kbs-dsl-parser');
+## 安装
+
+```bash
+npm install vite-plugin-kbs-dsl
+# 或
+yarn add vite-plugin-kbs-dsl
+# 或
+pnpm add vite-plugin-kbs-dsl
+```
+
+## 使用方法
+
+### Vite 配置
+
+```typescript
+// vite.config.ts
+import { defineConfig } from 'vite'
+import { kbsDslParser } from 'vite-plugin-kbs-dsl'
 
 // 保留函数名
 const ignoreFNames = [
@@ -111,21 +126,66 @@ const ignoreFNames = [
   '_wrapNativeSuper',
   '_wrapRegExp',
   '_writeOnlyError',
-];
+]
 
-module.exports = {
-  ...,
+export default defineConfig({
   plugins: [
-    new KbsDslParserPlugin({
+    kbsDslParser({
       compress: process.env.COMPRESS === 'yes', // 是否压缩代码
       ignoreFNames, // 保留的函数名列表：默认为 @babel/runtime/helpers
-      watch: true // 是否开启监听
+      watch: true, // 是否开启监听
       watchOptions: {
         protocol: 'ws', // 只有这个选项
         host: 'localhost', // 如果不想用 localhost 可以传值进去
         port: 9900 // 端口
+      },
+      test: (id) => id.endsWith('.js') // 自定义文件过滤规则
+    })
+  ]
+})
+```
+
+### JavaScript 配置
+
+```javascript
+// vite.config.js
+import { defineConfig } from 'vite'
+import { kbsDslParser } from 'vite-plugin-kbs-dsl'
+
+export default defineConfig({
+  plugins: [
+    kbsDslParser({
+      compress: false,
+      watch: true,
+      watchOptions: {
+        port: 9900
       }
     })
   ]
-}
+})
+```
+
+## 配置选项
+
+| 选项 | 类型 | 默认值 | 描述 |
+|------|------|--------|------|
+| `compress` | `boolean` | `false` | 是否压缩生成的 DSL 代码 |
+| `ignoreFNames` | `string[]` | `[]` | 保留的函数名列表，通常用于 @babel/runtime/helpers |
+| `watch` | `boolean` | `false` | 是否开启 WebSocket 监听模式 |
+| `watchOptions` | `object` | `{ port: 9900, host: 'localhost', protocol: 'ws' }` | WebSocket 服务器配置 |
+| `test` | `function` | `() => true` | 文件过滤函数，接收文件 ID，返回布尔值 |
+
+## 功能特性
+
+- ✅ 支持 Vite 4.x 和 5.x
+- ✅ TypeScript 支持
+- ✅ ES 模块格式
+- ✅ WebSocket 实时监听
+- ✅ 自定义文件过滤
+- ✅ 代码压缩选项
+- ✅ 完整的 ES5 语法支持
+
+## 输出
+
+插件会为每个匹配的 `.js` 文件生成对应的 `.dsl.json` 文件，包含转换后的 KBS DSL 结构。
 ```
